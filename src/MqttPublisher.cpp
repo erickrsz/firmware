@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <time.h>
 #include "config.h"
 
 static WiFiClient wifiClient;
@@ -32,12 +33,28 @@ void MqttPublisher::publishReading(const SensorReading& reading) {
     return;
   }
 
-  // Payload conforme fluxograma do TCC: timestamp, T, UR, id
+  // Hora real via NTP (sincronizada no WifiManager::connect())
+  struct tm timeinfo;
+  char horaFormatada[25];
+  if (getLocalTime(&timeinfo)) {
+    strftime(horaFormatada, sizeof(horaFormatada), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  } else {
+    strcpy(horaFormatada, "hora_indisponivel");
+  }
+
+  // Formata temperatura e umidade com exatamente 3 casas decimais,
+  // evitando o "ruido" de precisao do float (ex: 19.10000038 -> 19.100)
+  char tempStr[10];
+  char umidStr[10];
+  dtostrf(reading.temperature, 0, 3, tempStr);
+  dtostrf(reading.humidity, 0, 3, umidStr);
+
+  // Payload conforme fluxograma do TCC: hora, T, UR, id
   StaticJsonDocument<200> doc;
   doc["id"] = MQTT_CLIENT_ID;
-  doc["timestamp"] = millis();
-  doc["temperatura"] = reading.temperature;
-  doc["umidade"] = reading.humidity;
+  doc["hora"] = horaFormatada;
+  doc["temperatura"] = serialized(tempStr);
+  doc["umidade"] = serialized(umidStr);
 
   char payload[200];
   size_t len = serializeJson(doc, payload);
