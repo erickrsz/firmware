@@ -1,8 +1,8 @@
 #pragma once
 
 // ---------- Wi-Fi ----------
-#define WIFI_SSID     "Batata Bolota"
-#define WIFI_PASSWORD "aneerick1234"
+#define WIFI_SSID     "WIFI"
+#define WIFI_PASSWORD "SENHA"
 
 // ---------- MQTT ----------
 #define MQTT_BROKER    "test.mosquitto.org"
