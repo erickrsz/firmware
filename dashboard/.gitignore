@@ -1,0 +1,11 @@
+# Credenciais locais - nunca subir para o Git
+.env
+
+# Dependências instaladas
+node_modules/
+
+# Build de produção
+dist/
+
+# Cache do Vite
+.vite/

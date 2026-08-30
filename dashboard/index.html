@@ -523,13 +523,15 @@ set qos(a){this._setQos(a)},get retained(){return this._getRetained()},set retai
 
 </div>
 
-<script>
+<script type="module">
 (function(){
   "use strict";
 
-  var BROKER_HOST = "test.mosquitto.org";
-  var BROKER_PORT = 8081; // WebSocket + TLS
-  var TOPIC = "calculadora_agricola/leituras";
+  var BROKER_HOST = import.meta.env.VITE_MQTT_HOST;
+  var BROKER_PORT = Number(import.meta.env.VITE_MQTT_PORT);
+  var MQTT_USERNAME = import.meta.env.VITE_MQTT_USERNAME;
+  var MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD;
+  var TOPIC = import.meta.env.VITE_MQTT_TOPIC;
   var MAX_LOG_LINES = 15;
   var MAX_HISTORY = 24;
   var TEMP_RANGE = [0, 45];
@@ -550,6 +552,15 @@ set qos(a){this._setQos(a)},get retained(){return this._getRetained()},set retai
   var sparkUmid = document.getElementById('sparkUmid');
   var exportCsvBtn = document.getElementById('exportCsvBtn');
   var exportJsonBtn = document.getElementById('exportJsonBtn');
+  var metaBroker = document.getElementById('metaBroker');
+  var metaTopic = document.getElementById('metaTopic');
+  var topicLabel = document.getElementById('topicLabel');
+
+  // Reflete os valores reais vindos do .env, em vez do texto fixo
+  // que estava escrito direto no HTML
+  metaBroker.textContent = BROKER_HOST || '—';
+  metaTopic.textContent = TOPIC || '—';
+  topicLabel.textContent = TOPIC || '—';
 
   var tempHistory = [];
   var umidHistory = [];
@@ -714,6 +725,8 @@ set qos(a){this._setQos(a)},get retained(){return this._getRetained()},set retai
     client.connect({
       useSSL: true,
       timeout: 8,
+      userName: MQTT_USERNAME,
+      password: MQTT_PASSWORD,
       onSuccess: function(){
         setStatus('connected', 'conectado — assinando tópico');
         client.subscribe(TOPIC);
