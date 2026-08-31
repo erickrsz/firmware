@@ -7,3 +7,23 @@ include/config.h
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Credenciais locais - nunca subir para o Git
+.env
+
+# Ambiente virtual Python
+venv/
+__pycache__/
+*.pyc
+
+# Credenciais locais - nunca subir para o Git
+ 
+# Dependências instaladas
+node_modules/
+
+# Build de produção
+dist/
+
+# Cache do Vite
+.vite/
+collector/.env
