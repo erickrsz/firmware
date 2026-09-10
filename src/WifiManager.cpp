@@ -4,14 +4,11 @@
 #include <time.h>
 #include "config.h"
 
-void WifiManager::connect() {
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  Serial.print("Conectando ao Wi-Fi");
+void WifiManager::waitForConnectionAndSyncNtp() {
+  Serial.print("Aguardando Wi-Fi (iniciado pelo MeshManager)");
   unsigned long start = millis();
 
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
     delay(300);
     Serial.print(".");
   }
@@ -19,13 +16,11 @@ void WifiManager::connect() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\nWi-Fi conectado. IP: " + WiFi.localIP().toString());
 
-    // Sincroniza a hora real via NTP, agora que ja temos internet
     configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
 
     Serial.print("Sincronizando hora via NTP");
     struct tm timeinfo;
     unsigned long ntpStart = millis();
-    // Espera ativamente ate 10s pela sincronizacao terminar
     while (!getLocalTime(&timeinfo, 1000) && millis() - ntpStart < 10000) {
       Serial.print(".");
     }
@@ -35,10 +30,10 @@ void WifiManager::connect() {
       strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
       Serial.println("\nHora sincronizada: " + String(buf));
     } else {
-      Serial.println("\nFalha ao sincronizar hora via NTP (verifique se a rede permite UDP porta 123).");
+      Serial.println("\nFalha ao sincronizar hora via NTP.");
     }
   } else {
-    Serial.println("\nFalha ao conectar ao Wi-Fi.");
+    Serial.println("\nFalha ao conectar ao Wi-Fi via mesh bridge.");
   }
 }
 

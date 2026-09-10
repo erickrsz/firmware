@@ -9,12 +9,21 @@
 static WiFiClientSecure wifiClient;
 static PubSubClient mqttClient(wifiClient);
 
+static String currentHora() {
+  struct tm timeinfo;
+  char buf[25];
+  if (getLocalTime(&timeinfo)) {
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    return String(buf);
+  }
+  return "hora_indisponivel";
+}
+
 void MqttPublisher::begin() {
-  // HiveMQ Cloud exige TLS. Para simplificar o TCC, pulamos a validacao
-  // do certificado (setInsecure). Em producao real, o ideal seria usar
-  // wifiClient.setCACert(...) com o certificado raiz correto.
   wifiClient.setInsecure();
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
+  mqttClient.setSocketTimeout(60);
+  mqttClient.setKeepAlive(60);
 }
 
 void MqttPublisher::reconnectIfNeeded() {
@@ -36,18 +45,10 @@ void MqttPublisher::reconnectIfNeeded() {
   mqttClient.loop();
 }
 
-void MqttPublisher::publishReading(const SensorReading& reading) {
+void MqttPublisher::publishReading(const SensorReading& reading, const char* nodeId) {
   if (!reading.valid) {
     Serial.println("Leitura invalida, nao publicado.");
     return;
-  }
-
-  struct tm timeinfo;
-  char horaFormatada[25];
-  if (getLocalTime(&timeinfo)) {
-    strftime(horaFormatada, sizeof(horaFormatada), "%Y-%m-%d %H:%M:%S", &timeinfo);
-  } else {
-    strcpy(horaFormatada, "hora_indisponivel");
   }
 
   char tempStr[10];
@@ -56,8 +57,8 @@ void MqttPublisher::publishReading(const SensorReading& reading) {
   dtostrf(reading.humidity, 0, 3, umidStr);
 
   StaticJsonDocument<200> doc;
-  doc["id"] = MQTT_CLIENT_ID;
-  doc["hora"] = horaFormatada;
+  doc["id"] = nodeId;
+  doc["hora"] = currentHora();
   doc["temperatura"] = serialized(tempStr);
   doc["umidade"] = serialized(umidStr);
 
@@ -65,8 +66,32 @@ void MqttPublisher::publishReading(const SensorReading& reading) {
   size_t len = serializeJson(doc, payload);
 
   if (mqttClient.publish(MQTT_TOPIC, payload, len)) {
-    Serial.println("Publicado: " + String(payload));
+    Serial.println("Publicado (local): " + String(payload));
   } else {
     Serial.println("Falha ao publicar no MQTT.");
+  }
+}
+
+void MqttPublisher::forwardMeshPayload(const String& rawJson) {
+  StaticJsonDocument<200> doc;
+  DeserializationError err = deserializeJson(doc, rawJson);
+
+  if (err) {
+    Serial.print("Payload da mesh invalido, descartado: ");
+    Serial.println(err.c_str());
+    return;
+  }
+
+  // Substitui/adiciona a hora, ja que quem enviou (no sensor, sem
+  // Wi-Fi/NTP) nao tem como saber a hora real.
+  doc["hora"] = currentHora();
+
+  char payload[200];
+  size_t len = serializeJson(doc, payload);
+
+  if (mqttClient.publish(MQTT_TOPIC, payload, len)) {
+    Serial.println("Publicado (via mesh): " + String(payload));
+  } else {
+    Serial.println("Falha ao publicar no MQTT (mensagem da mesh).");
   }
 }
