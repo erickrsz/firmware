@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <ArduinoJson.h>
 #include "config.h"
 #include "WifiManager.h"
@@ -8,7 +9,6 @@
 
 unsigned long lastReadTime = 0;
 
-// So chamado no no raiz (ver MeshManager::setOnMeshMessage em setup()).
 void onMeshMessageReceived(const String& payload) {
   MqttPublisher::forwardMeshPayload(payload);
 }
@@ -19,20 +19,42 @@ void setup() {
 
   MeshManager::begin();
 
-  if (IS_ROOT_NODE) {
-    MeshManager::setOnMeshMessage(onMeshMessageReceived);
-    WifiManager::waitForConnectionAndSyncNtp();
+    if (IS_ROOT_NODE) {
+      MeshManager::setOnMeshMessage(onMeshMessageReceived);
+
+      // IMPORTANTE: mesh.stationManual() (chamado dentro de
+      // MeshManager::begin()) so AGENDA a tentativa de conexao - quem
+      // processa essa tentativa de verdade e o scheduler interno do
+      // painlessMesh, que so roda quando chamamos MeshManager::update()
+      // (mesh.update()) repetidamente. Por isso, aqui usamos um loop
+      // que continua chamando update() enquanto espera, em vez de um
+      // delay() bloqueante que travaria a mesh inteira.
+      Serial.print("Aguardando Wi-Fi (via mesh bridge)");
+      unsigned long start = millis();
+      while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
+        MeshManager::update();
+        delay(50);
+        if ((millis() - start) % 1000 < 50) Serial.print(".");
+      }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\nWi-Fi conectado! IP: " + WiFi.localIP().toString());
+      WifiManager::syncNtp();
+    } else {
+      Serial.println("\nFalha ao conectar ao Wi-Fi via mesh bridge (20s).");
+    }
+
     MqttPublisher::begin();
   }
 }
 
 void loop() {
-  // mesh.update() precisa rodar sempre, em todo ciclo do loop,
-  // independente do papel deste no.
   MeshManager::update();
 
   if (IS_ROOT_NODE) {
-    MqttPublisher::reconnectIfNeeded();
+    if (WiFi.status() == WL_CONNECTED) {
+      MqttPublisher::reconnectIfNeeded();
+    }
   }
 
   if (lastReadTime == 0 || millis() - lastReadTime >= READ_INTERVAL_MS) {
@@ -46,11 +68,12 @@ void loop() {
     }
 
     if (IS_ROOT_NODE) {
-      // O no raiz publica direto no MQTT, com sua propria hora real.
-      MqttPublisher::publishReading(reading, NODE_ID);
+      if (WiFi.status() == WL_CONNECTED) {
+        MqttPublisher::publishReading(reading, NODE_ID);
+      } else {
+        Serial.println("Wi-Fi indisponivel, leitura descartada (root sem conexao).");
+      }
     } else {
-      // Nos-sensores nao tem Wi-Fi/NTP proprio - mandam so id + valores
-      // pela mesh; o no raiz completa a hora ao repassar ao MQTT.
       StaticJsonDocument<128> doc;
       doc["id"] = NODE_ID;
 

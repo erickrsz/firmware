@@ -2,9 +2,8 @@
 
 class WifiManager {
 public:
-  // So usado pelo no raiz. O MeshManager (via mesh.stationManual)
-  // ja inicia a conexao Wi-Fi - esta funcao so espera ela terminar
-  // e sincroniza a hora via NTP.
-  static void waitForConnectionAndSyncNtp();
+  // So sincroniza a hora via NTP. So deve ser chamada depois que o
+  // Wi-Fi ja estiver de fato conectado (WiFi.status() == WL_CONNECTED).
+  static void syncNtp();
   static bool isConnected();
 };

@@ -4,36 +4,22 @@
 #include <time.h>
 #include "config.h"
 
-void WifiManager::waitForConnectionAndSyncNtp() {
-  Serial.print("Aguardando Wi-Fi (iniciado pelo MeshManager)");
-  unsigned long start = millis();
+void WifiManager::syncNtp() {
+  configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
 
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
-    delay(300);
+  Serial.print("Sincronizando hora via NTP");
+  struct tm timeinfo;
+  unsigned long ntpStart = millis();
+  while (!getLocalTime(&timeinfo, 1000) && millis() - ntpStart < 10000) {
     Serial.print(".");
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWi-Fi conectado. IP: " + WiFi.localIP().toString());
-
-    configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
-
-    Serial.print("Sincronizando hora via NTP");
-    struct tm timeinfo;
-    unsigned long ntpStart = millis();
-    while (!getLocalTime(&timeinfo, 1000) && millis() - ntpStart < 10000) {
-      Serial.print(".");
-    }
-
-    if (getLocalTime(&timeinfo)) {
-      char buf[25];
-      strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
-      Serial.println("\nHora sincronizada: " + String(buf));
-    } else {
-      Serial.println("\nFalha ao sincronizar hora via NTP.");
-    }
+  if (getLocalTime(&timeinfo)) {
+    char buf[25];
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    Serial.println("\nHora sincronizada: " + String(buf));
   } else {
-    Serial.println("\nFalha ao conectar ao Wi-Fi via mesh bridge.");
+    Serial.println("\nFalha ao sincronizar hora via NTP.");
   }
 }
 

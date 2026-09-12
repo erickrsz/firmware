@@ -23,16 +23,20 @@ static void changedConnectionCallback() {
 
 void MeshManager::begin() {
   mesh.setDebugMsgTypes(ERROR | STARTUP);
-  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+
+  // IMPORTANTE: o canal precisa bater com o canal do seu roteador
+  // Wi-Fi (definido em MESH_CHANNEL no config.h). O ESP32 so usa um
+  // canal de radio por vez para mesh + Wi-Fi simultaneos - se o
+  // roteador estiver em canal diferente, o Wi-Fi nunca conecta
+  // (mesmo com SSID/senha corretos), travando com "Falha ao
+  // conectar ao Wi-Fi via mesh bridge".
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, MESH_CHANNEL);
 
   mesh.onReceive(&receivedCallback);
   mesh.onNewConnection(&newConnectionCallback);
   mesh.onChangedConnections(&changedConnectionCallback);
 
   if (IS_ROOT_NODE) {
-    // O no raiz mantem uma perna no mesh e outra no Wi-Fi normal,
-    // servindo de ponte entre os dois. E o painlessMesh, nao o
-    // WifiManager, quem inicia essa conexao Wi-Fi neste caso.
     mesh.stationManual(WIFI_SSID, WIFI_PASSWORD);
     mesh.setRoot(true);
     mesh.setContainsRoot(true);
