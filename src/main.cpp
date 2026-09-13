@@ -19,29 +19,16 @@ void setup() {
 
   MeshManager::begin();
 
-    if (IS_ROOT_NODE) {
-      MeshManager::setOnMeshMessage(onMeshMessageReceived);
+  if (IS_ROOT_NODE) {
+    MeshManager::setOnMeshMessage(onMeshMessageReceived);
 
-      // IMPORTANTE: mesh.stationManual() (chamado dentro de
-      // MeshManager::begin()) so AGENDA a tentativa de conexao - quem
-      // processa essa tentativa de verdade e o scheduler interno do
-      // painlessMesh, que so roda quando chamamos MeshManager::update()
-      // (mesh.update()) repetidamente. Por isso, aqui usamos um loop
-      // que continua chamando update() enquanto espera, em vez de um
-      // delay() bloqueante que travaria a mesh inteira.
-      Serial.print("Aguardando Wi-Fi (via mesh bridge)");
-      unsigned long start = millis();
-      while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
-        MeshManager::update();
-        delay(50);
-        if ((millis() - start) % 1000 < 50) Serial.print(".");
-      }
+    // Fluxo classico de Wi-Fi, ja comprovado estavel nesta rede
+    // antes do mesh - sem nenhuma "ponte" fragil no meio.
+    WifiManager::connect();
 
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("\nWi-Fi conectado! IP: " + WiFi.localIP().toString());
-      WifiManager::syncNtp();
-    } else {
-      Serial.println("\nFalha ao conectar ao Wi-Fi via mesh bridge (20s).");
+      Serial.print("Canal Wi-Fi deste no raiz (use em ESPNOW_CHANNEL dos sensores): ");
+      Serial.println(WiFi.channel());
     }
 
     MqttPublisher::begin();
@@ -49,8 +36,6 @@ void setup() {
 }
 
 void loop() {
-  MeshManager::update();
-
   if (IS_ROOT_NODE) {
     if (WiFi.status() == WL_CONNECTED) {
       MqttPublisher::reconnectIfNeeded();
@@ -88,7 +73,7 @@ void loop() {
       serializeJson(doc, payload);
 
       MeshManager::broadcastReading(payload);
-      Serial.println("Enviado via mesh: " + payload);
+      Serial.println("Enviado via ESP-NOW: " + payload);
     }
   }
 }

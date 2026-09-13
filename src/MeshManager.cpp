@@ -1,57 +1,79 @@
 #include "MeshManager.h"
-#include <painlessMesh.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
+#include <WiFi.h>
 #include "config.h"
 
-static painlessMesh mesh;
-static Scheduler userScheduler;
 static std::function<void(const String&)> onMeshMessageCallback = nullptr;
+static uint8_t rootMac[6] = ROOT_MAC_ADDRESS;
 
-static void receivedCallback(uint32_t from, String &msg) {
-  Serial.printf("Mensagem recebida via mesh de %u: %s\n", from, msg.c_str());
+static void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
+  char buf[250];
+  int copyLen = (len < (int)sizeof(buf) - 1) ? len : (int)sizeof(buf) - 1;
+  memcpy(buf, incomingData, copyLen);
+  buf[copyLen] = '\0';
+  String msg(buf);
+
+  Serial.printf("ESP-NOW recebido: %s\n", msg.c_str());
+
   if (IS_ROOT_NODE && onMeshMessageCallback) {
     onMeshMessageCallback(msg);
   }
 }
 
-static void newConnectionCallback(uint32_t nodeId) {
-  Serial.printf("Novo no conectado ao mesh: %u\n", nodeId);
-}
-
-static void changedConnectionCallback() {
-  Serial.printf("Topologia do mesh mudou. Total de nos: %d\n", mesh.getNodeList().size());
+static void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("ESP-NOW envio: ");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "sucesso" : "falhou");
 }
 
 void MeshManager::begin() {
-  mesh.setDebugMsgTypes(ERROR | STARTUP);
+  WiFi.mode(WIFI_STA);
 
-  // IMPORTANTE: o canal precisa bater com o canal do seu roteador
-  // Wi-Fi (definido em MESH_CHANNEL no config.h). O ESP32 so usa um
-  // canal de radio por vez para mesh + Wi-Fi simultaneos - se o
-  // roteador estiver em canal diferente, o Wi-Fi nunca conecta
-  // (mesmo com SSID/senha corretos), travando com "Falha ao
-  // conectar ao Wi-Fi via mesh bridge".
-  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, MESH_CHANNEL);
+  if (!IS_ROOT_NODE) {
+    // O no sensor nao se conecta a nenhum roteador - ele so precisa
+    // que o radio esteja no MESMO CANAL que o no raiz vai usar
+    // (ESP-NOW exige mesmo canal entre remetente e destinatario).
+    // Depois que o no raiz conectar ao Wi-Fi pela primeira vez, ele
+    // imprime o canal dele no Serial - copie esse numero para
+    // ESPNOW_CHANNEL no config.h deste sensor.
+    esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
+  }
 
-  mesh.onReceive(&receivedCallback);
-  mesh.onNewConnection(&newConnectionCallback);
-  mesh.onChangedConnections(&changedConnectionCallback);
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Erro ao iniciar ESP-NOW.");
+    return;
+  }
 
-  if (IS_ROOT_NODE) {
-    mesh.stationManual(WIFI_SSID, WIFI_PASSWORD);
-    mesh.setRoot(true);
-    mesh.setContainsRoot(true);
-    Serial.println("Este no esta configurado como RAIZ (ponte com Wi-Fi/MQTT).");
+  esp_now_register_recv_cb(onDataRecv);
+  esp_now_register_send_cb(onDataSent);
+
+  if (!IS_ROOT_NODE) {
+    esp_now_peer_info_t peerInfo = {};
+    memcpy(peerInfo.peer_addr, rootMac, 6);
+    peerInfo.channel = ESPNOW_CHANNEL;
+    peerInfo.encrypt = false;
+
+    if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+      Serial.println("Erro ao adicionar o no raiz como peer ESP-NOW.");
+    }
+    Serial.println("Este no esta configurado como SENSOR (ESP-NOW).");
   } else {
-    Serial.println("Este no esta configurado como SENSOR (apenas mesh).");
+    Serial.println("Este no esta configurado como RAIZ (ESP-NOW + Wi-Fi/MQTT).");
+    Serial.print("MAC deste no raiz (use em ROOT_MAC_ADDRESS dos sensores): ");
+    Serial.println(WiFi.macAddress());
   }
 }
 
 void MeshManager::update() {
-  mesh.update();
+  // ESP-NOW e orientado a eventos (callbacks), nao precisa de
+  // polling. Mantido vazio so por compatibilidade com main.cpp.
 }
 
 void MeshManager::broadcastReading(const String& jsonPayload) {
-  mesh.sendBroadcast(jsonPayload);
+  esp_err_t result = esp_now_send(rootMac, (const uint8_t*)jsonPayload.c_str(), jsonPayload.length());
+  if (result != ESP_OK) {
+    Serial.println("Falha ao enviar via ESP-NOW.");
+  }
 }
 
 void MeshManager::setOnMeshMessage(std::function<void(const String&)> callback) {

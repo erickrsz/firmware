@@ -4,18 +4,21 @@
 #define NODE_ID       "esp32_no_sensor_01"
 #define IS_ROOT_NODE  true
 
-// ---------- Rede Mesh ----------
-#define MESH_PREFIX   "calculadora_agricola_mesh"
-#define MESH_PASSWORD "senha_do_mesh_min8car"
-#define MESH_PORT     5555
-// IMPORTANTE: precisa ser o MESMO canal que o seu roteador Wi-Fi usa
-// de verdade. Va nas configuracoes do roteador (geralmente em
-// "Wireless" ou "Wi-Fi Settings") e veja/fixe o canal la (canal 1,
-// 6 ou 11 sao os mais comuns e recomendados no 2.4GHz). Depois
-// coloque o mesmo numero aqui.
-#define MESH_CHANNEL  1
+// ---------- ESP-NOW ----------
+// So usados por nos SENSORES (IS_ROOT_NODE = false):
+//
+// 1. Grave o no raiz primeiro, com IS_ROOT_NODE = true. Ele vai
+//    imprimir o MAC dele e o canal Wi-Fi no Monitor Serial assim
+//    que conectar.
+// 2. Copie o MAC impresso para ROOT_MAC_ADDRESS abaixo.
+// 3. Copie o canal impresso para ESPNOW_CHANNEL abaixo.
+// 4. So entao grave o firmware no ESP32 sensor (com IS_ROOT_NODE
+//    = false).
+#define ROOT_MAC_ADDRESS {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}
+#define ESPNOW_CHANNEL 1
 
 // ---------- Wi-Fi ----------
+// So usado pelo no raiz.
 #define WIFI_SSID     "SEU_WIFI"
 #define WIFI_PASSWORD "SUA_SENHA"
 

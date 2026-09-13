@@ -2,8 +2,9 @@
 
 class WifiManager {
 public:
-  // So sincroniza a hora via NTP. So deve ser chamada depois que o
-  // Wi-Fi ja estiver de fato conectado (WiFi.status() == WL_CONNECTED).
-  static void syncNtp();
+  // So usado pelo no raiz - Wi-Fi normal (sem nenhuma "ponte"),
+  // exatamente o fluxo ja testado e comprovado nesta rede antes do
+  // mesh. Conecta e sincroniza a hora via NTP.
+  static void connect();
   static bool isConnected();
 };
